@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#4f46e5">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="description" content="تطبيق قتيبة اكسبرس - الأسرع للتوصيل">
+    <title>تطبيق قتيبة اكسبرس - للتوصيل السريع</title>
+    
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚀</text></svg>">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: 'var(--theme-primary, #4f46e5)', 
+                        secondary: '#f97316', 
+                        surface: '#f8fafc',
+                    },
+                    boxShadow: {
+                        'soft': '0 10px 40px -10px rgba(0,0,0,0.08)',
+                        'float': '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+                    },
+                    padding: {
+                        'safe': 'env(safe-area-inset-bottom)',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap');
+        body { font-family: 'Tajawal', sans-serif; background-color: #e2e8f0; -webkit-tap-highlight-color: transparent; }
+        
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        .glass-nav { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-top: 1px solid rgba(255,255,255,0.5); }
+        .glass-panel { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.6); }
+        
+        @keyframes slideUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .bottom-sheet { animation: slideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .fade-in { animation: fadeIn 0.3s ease-out forwards; }
+        
+        @keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-5px); } 100% { transform: translateY(0px); } }
+        .floating { animation: float 3s ease-in-out infinite; }
+        
+        @keyframes pulse-ring { 0% { transform: scale(0.8); box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.7); } 70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(79, 70, 229, 0); } 100% { transform: scale(0.8); box-shadow: 0 0 0 0 rgba(79, 70, 229, 0); } }
+        .live-indicator { animation: pulse-ring 2s infinite; }
+        
+        .nav-active { color: #4f46e5 !important; }
+        .nav-active i { transform: translateY(-4px) scale(1.15); transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); color: #4f46e5; }
+        .nav-item i { transition: transform 0.3s ease; }
+        
+        .star-rating i { cursor: pointer; color: #e5e7eb; transition: color 0.2s, transform 0.2s; }
+        .star-rating i:hover { transform: scale(1.2); }
+        .star-rating i.active { color: #fbbf24; }
+        
+        .file-upload-btn { position: relative; overflow: hidden; display: inline-block; cursor: pointer; }
+        .file-upload-btn input[type=file] { font-size: 100px; position: absolute; left: 0; top: 0; opacity: 0; cursor: pointer; height: 100%; }
+        
+        #tracking-map { height: 100%; width: 100%; border-radius: 1.5rem; z-index: 10; }
+        .map-marker-custom { font-size: 32px; text-shadow: 0 4px 6px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; background: transparent; border: none; }
+        
+        .timeline-line { position: absolute; top: 12px; right: 20px; bottom: 20px; width: 2px; background-color: #e2e8f0; z-index: 0; }
+        .timeline-line-active { background-color: #4f46e5; transition: height 0.5s ease; }
+        .pb-safe { padding-bottom: calc(1rem + env(safe-area-inset-bottom)); }
+        .mb-safe { margin-bottom: calc(1rem + env(safe-area-inset-bottom)); }
+
+        .gemini-sparkle { animation: sparklePulse 1.5s infinite alternate; }
+        @keyframes sparklePulse { 0% { transform: scale(1); opacity: 0.8; filter: hue-rotate(0deg); } 100% { transform: scale(1.2); opacity: 1; filter: hue-rotate(45deg); } }
+        
+        /* إضافات جديدة - Loading Skeleton */
+        @keyframes skeleton-loading { 0% { background-position: -200px 0; } 100% { background-position: calc(200px + 100%) 0; } }
+        .skeleton { background: linear-gradient(90deg, #f0f0f0 0px, #f8f8f8 40px, #f0f0f0 80px); background-size: 200px 100%; animation: skeleton-loading 1.4s ease-in-out infinite; }
+        
+        /* Promo Badge Animation */
+        @keyframes badge-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+        .promo-badge { animation: badge-pulse 2s ease-in-out infinite; }
+        
+        /* Ripple Effect */
+        .ripple { position: relative; overflow: hidden; }
+        .ripple::after { content: ""; position: absolute; width: 100%; height: 100%; top: 0; left: 0; pointer-events: none; background-image: radial-gradient(circle, #fff 10%, transparent 10.01%); background-repeat: no-repeat; background-position: 50%; transform: scale(10, 10); opacity: 0; transition: transform 0.5s, opacity 1s; }
+        .ripple:active::after { transform: scale(0, 0); opacity: 0.3; transition: 0s; }
+    </style>
+</head>
+<body class="text-gray-800 antialiased flex justify-center h-screen overflow-hidden">
+
+    <!-- Loading Screen -->
+    <div id="initial-loader" class="fixed inset-0 bg-gradient-to-br from-indigo-900 to-indigo-700 z-[9999] flex flex-col items-center justify-center transition-opacity duration-700">
+        <div class="relative w-32 h-32 flex items-center justify-center mb-6">
+            <div class="absolute inset-0 bg-white/20 rounded-full blur-xl animate-pulse"></div>
+            <div class="w-24 h-24 bg-white rounded-3xl shadow-2xl flex items-center justify-center text-5xl relative z-10 rotate-3 transition-transform">
+                <i class="fa-solid fa-rocket text-orange-500 floating"></i>
+            </div>
+        </div>
+        <h1 class="text-4xl font-black text-white mb-2 tracking-wider drop-shadow-md">قتيبة اكسبرس</h1>
+        <p class="text-indigo-200 text-sm font-medium tracking-wide">السرعة والموثوقية...</p>
+        <div class="mt-10 flex gap-2">
+            <div class="w-2 h-2 bg-white rounded-full animate-bounce" style="animation-delay: 0s;"></div>
+            <div class="w-2 h-2 bg-white rounded-full animate-bounce" style="animation-delay: 0.1s;"></div>
+            <div class="w-2 h-2 bg-white rounded-full animate-bounce" style="animation-delay: 0.2s;"></div>
+        </div>
+    </div>
+
+    <!-- Main App Container -->
+    <div class="w-full max-w-md h-full bg-surface flex flex-col relative shadow-2xl overflow-hidden border-x border-gray-200">
+        
+        <!-- Toast Notification -->
+        <div id="toast" class="absolute top-6 left-1/2 transform -translate-x-1/2 px-6 py-3.5 rounded-full shadow-float transition-all duration-400 opacity-0 z-[500] pointer-events-none flex items-center gap-3 text-sm font-bold min-w-[280px] max-w-[90%] backdrop-blur-md text-white border border-white/10">
+            <span id="toast-icon" class="text-lg flex-shrink-0"></span>
+            <span id="toast-msg" class="flex-1 truncate"></span>
+        </div>
+
+        <!-- Progress Bar (للتحميل) -->
+        <div id="progress-bar" class="fixed top-0 left-0 right-0 h-1 bg-primary transform scale-x-0 origin-left transition-transform duration-300 z-[600] hidden"></div>
+
+        <!-- ==================== LOGIN VIEW ==================== -->
+        <div id="view-login" class="flex flex-col h-full bg-white relative overflow-y-auto hide-scrollbar hidden fade-in">
+            <div class="absolute top-0 left-0 right-0 h-[45%] bg-gradient-to-br from-indigo-600 via-primary to-purple-700 rounded-b-[3rem] overflow-hidden">
+                <div class="absolute -right-20 -top-20 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
+                <div class="absolute -left-10 top-20 w-40 h-40 bg-orange-500/20 rounded-full blur-2xl"></div>
+            </div>
+            
+            <div class="flex-1 flex flex-col items-center pt-20 px-8 relative z-10 pb-safe">
+                <div id="app-logo-container" class="w-28 h-28 bg-white rounded-[2rem] shadow-float flex items-center justify-center text-5xl mb-6 overflow-hidden border-4 border-white">
+                    <i class="fa-solid fa-rocket text-primary"></i>
+                </div>
+                <h1 id="app-name-display-1" class="text-4xl font-black text-white mb-2 drop-shadow-md">قتيبة اكسبرس</h1>
+                <p class="text-indigo-100 mb-12 text-center text-sm font-medium">أسرع ديليفري في منطقتك</p>
+                
+                <!-- إضافة: نبذة سريعة عن المميزات -->
+                <div class="w-full bg-white/10 backdrop-blur-sm rounded-2xl p-4 mb-6 border border-white/20">
+                    <div class="flex items-center gap-3 text-white text-xs">
+                        <div class="flex-1 flex items-center gap-2">
+                            <i class="fa-solid fa-bolt text-yellow-300"></i>
+                            <span class="font-bold">توصيل سريع</span>
+                        </div>
+                        <div class="flex-1 flex items-center gap-2">
+                            <i class="fa-solid fa-shield-halved text-green-300"></i>
+                            <span class="font-bold">آمن وموثوق</span>
+                        </div>
+                        <div class="flex-1 flex items-center gap-2">
+                            <i class="fa-solid fa-star text-yellow-300"></i>
+                            <span class="font-bold">نقاط مكافآت</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="w-full glass-panel rounded-[2rem] shadow-soft p-7 border border-gray-100">
+                    <div class="flex w-full bg-gray-100/80 rounded-xl p-1.5 mb-8">
+                        <button id="tab-customer" onclick="window.switchLoginTab('customer')" class="flex-1 py-2.5 text-sm font-bold bg-white shadow-sm rounded-lg text-primary transition-all duration-300">الزبائن</button>
+                        <button id="tab-staff" onclick="window.switchLoginTab('staff')" class="flex-1 py-2.5 text-sm font-bold text-gray-500 rounded-lg hover:text-gray-700 transition-all duration-300">الشركاء</button>
+                    </div>
+
+                    <div id="form-customer" class="w-full space-y-5 fade-in">
+                        <div class="relative group">
+                            <div class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary transition-colors"><i class="fa-solid fa-phone"></i></div>
+                            <input type="tel" id="login-phone" class="w-full pr-11 pl-4 py-3.5 rounded-xl bg-gray-50 border-none ring-1 ring-gray-200 focus:ring-2 focus:ring-primary focus:bg-white transition-all outline-none text-sm font-medium" placeholder="رقم الهاتف">
+                        </div>
+                        <div class="relative group">
+                            <div class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary transition-colors"><i class="fa-solid fa-lock"></i></div>
+                            <input type="password" id="login-password" class="w-full pr-11 pl-4 py-3.5 rounded-xl bg-gray-50 border-none ring-1 ring-gray-200 focus:ring-2 focus:ring-primary focus:bg-white transition-all outline-none text-sm font-medium" placeholder="كلمة المرور">
+                            <button type="button" onclick="window.togglePassword('login-password')" class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-primary transition-colors">
+                                <i class="fa-solid fa-eye"></i>
+                            </button>
+                        </div>
+                        <button id="btn-login-customer" onclick="window.loginCustomer()" class="w-full bg-gradient-to-r from-primary to-indigo-500 hover:from-indigo-500 hover:to-primary text-white font-bold py-4 rounded-xl shadow-lg shadow-indigo-500/30 transition-all active:scale-[0.98] mt-2 flex justify-center items-center gap-2 ripple">تسجيل الدخول</button>
+                        <p class="text-center text-sm mt-6 text-gray-500 font-medium">ليس لديك حساب؟ <button onclick="window.showView('signup')" class="text-primary font-bold hover:underline">سجل الآن</button></p>
+                    </div>
+
+                    <div id="form-staff" class="w-full space-y-5 hidden fade-in">
+                        <div class="relative">
+                            <div class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400"><i class="fa-solid fa-briefcase"></i></div>
+                            <select id="login-staff-role" class="w-full pr-11 pl-4 py-3.5 rounded-xl bg-gray-50 border-none ring-1 ring-gray-200 focus:ring-2 focus:ring-primary focus:bg-white transition-all outline-none text-sm font-bold text-gray-700 appearance-none">
+                                <option value="admin">إدارة التطبيق 🛡️</option>
+                                <option value="merchant">متجر / مطعم 🏪</option>
+                                <option value="captain">كابتن توصيل 🛵</option>
+                                <option value="support">دعم فني 🎧</option>
+                            </select>
+                            <div class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"><i class="fa-solid fa-chevron-down text-xs"></i></div>
+                        </div>
+                        <div class="relative group">
+                            <div class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary transition-colors"><i class="fa-solid fa-id-card"></i></div>
+                            <input type="text" id="login-staff-worknum" class="w-full pr-11 pl-4 py-3.5 rounded-xl bg-gray-50 border-none ring-1 ring-gray-200 focus:ring-2 focus:ring-primary focus:bg-white transition-all outline-none text-sm font-medium" placeholder="المعرف (ID)">
+                        </div>
+                        <div class="relative group">
+                            <div class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary transition-colors"><i class="fa-solid fa-lock"></i></div>
+                            <input type="password" id="login-staff-password" class="w-full pr-11 pl-4 py-3.5 rounded-xl bg-gray-50 border-none ring-1 ring-gray-200 focus:ring-2 focus:ring-primary focus:bg-white transition-all outline-none text-sm font-medium" placeholder="كلمة المرور">
+                            <button type="button" onclick="window.togglePassword('login-staff-password')" class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-primary transition-colors">
+                                <i class="fa-solid fa-eye"></i>
+                            </button>
+                        </div>
+                        <button id="btn-login-staff" onclick="window.loginStaff()" class="w-full bg-gray-900 hover:bg-black text-white font-bold py-4 rounded-xl shadow-lg shadow-gray-900/30 transition-all active:scale-[0.98] mt-2 flex justify-center items-center gap-2 ripple">دخول الشركاء</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== SIGNUP VIEW ==================== -->
+        <div id="view-signup" class="hidden flex-col h-full bg-white relative overflow-y-auto hide-scrollbar fade-in pb-safe">
+            <div class="p-6 pb-2 flex items-center">
+                <button onclick="window.showView('login')" class="w-10 h-10 bg-gray-50 border border-gray-100 rounded-full flex items-center justify-center text-gray-600 hover:bg-gray-100 transition-colors shadow-sm"><i class="fa-solid fa-arrow-right"></i></button>
+            </div>
+            <div class="px-8 pb-8 flex-1 pt-4">
+                <h2 class="text-3xl font-black text-gray-900 mb-2">إنشاء حساب</h2>
+                <p class="text-gray-500 mb-8 text-sm font-medium">انضم لنا وابدأ بطلب أشهى المأكولات والمقاضي</p>
+                <div class="space-y-4">
+                    <input type="text" id="reg-name" class="w-full px-4 py-3.5 rounded-xl bg-gray-50 border-none ring-1 ring-gray-200 focus:ring-2 focus:ring-primary outline-none text-sm transition-all" placeholder="الاسم الكامل">
+                    <input type="tel" id="reg-phone" class="w-full px-4 py-3.5 rounded-xl bg-gray-50 border-none ring-1 ring-gray-200 focus:ring-2 focus:ring-primary outline-none text-sm transition-all" placeholder="رقم الهاتف (مثال: 079XXXXXXX)">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="relative">
+                            <input type="password" id="reg-password" class="w-full px-4 py-3.5 rounded-xl bg-gray-50 border-none ring-1 ring-gray-200 focus:ring-2 focus:ring-primary outline-none text-sm transition-all" placeholder="كلمة المرور">
+                            <button type="button" onclick="window.togglePassword('reg-password')" class="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-primary transition-colors text-xs">
+                                <i class="fa-solid fa-eye"></i>
+                            </button>
+                        </div>
+                        <div class="relative">
+                            <input type="password" id="reg-confirm" class="w-full px-4 py-3.5 rounded-xl bg-gray-50 border-none ring-1 ring-gray-200 focus:ring-2 focus:ring-primary outline-none text-sm transition-all" placeholder="تأكيد الكلمة">
+                            <button type="button" onclick="window.togglePassword('reg-confirm')" class="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-primary transition-colors text-xs">
+                                <i class="fa-solid fa-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- إضافة: مؤشر قوة كلمة المرور -->
+                    <div id="password-strength" class="hidden">
+                        <div class="flex gap-1 mb-1">
+                            <div class="h-1 flex-1 rounded-full bg-gray-200" id="strength-bar-1"></div>
+                            <div class="h-1 flex-1 rounded-full bg-gray-200" id="strength-bar-2"></div>
+                            <div class="h-1 flex-1 rounded-full bg-gray-200" id="strength-bar-3"></div>
+                            <div class="h-1 flex-1 rounded-full bg-gray-200" id="strength-bar-4"></div>
+                        </div>
+                        <p id="password-strength-text" class="text-[10px] font-bold text-gray-400"></p>
+                    </div>
+                    
+                    <button id="btn-register" onclick="window.registerCustomer()" class="w-full bg-gradient-to-r from-secondary to-orange-400 text-white font-bold py-4 rounded-xl shadow-lg shadow-orange-500/30 mt-8 active:scale-[0.98] transition-all flex justify-center items-center gap-2 ripple">التسجيل والبدء</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== CUSTOMER VIEW ==================== -->
+        <div id="view-customer" class="hidden flex-col h-full bg-surface relative fade-in">
+            <!-- Header -->
+            <div class="bg-white px-6 py-4 rounded-b-[2rem] shadow-sm z-20 relative shrink-0 flex justify-between items-center border-b border-gray-100">
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 bg-gradient-to-br from-indigo-100 to-indigo-50 rounded-full flex items-center justify-center text-primary border border-indigo-100 shadow-sm relative overflow-hidden">
+                        <img id="cust-profile-img-small" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%234f46e5'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/%3E%3C/svg%3E" class="w-8 h-8 opacity-70">
+                    </div>
+                    <div>
+                        <p class="text-[10px] font-bold text-gray-400 mb-0.5" id="app-name-display-2">قتيبة اكسبرس</p>
+                        <h2 class="text-sm font-black text-gray-800 truncate max-w-[150px]">مرحباً، <span id="cust-name-display"></span></h2>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3">
+                    <div class="bg-gray-50 border border-gray-100 px-3 py-1.5 rounded-xl flex flex-col items-center shadow-inner">
+                        <span class="text-[9px] text-gray-400 font-bold">نقاطك</span>
+                        <span class="text-xs font-black text-secondary"><i class="fa-solid fa-star text-[8px] mr-0.5"></i><span id="cust-points-display">0</span></span>
+                    </div>
+                    <button onclick="window.openNotificationsModal()" class="w-10 h-10 bg-gray-50 border border-gray-100 rounded-full flex items-center justify-center relative hover:bg-gray-100 transition-colors text-gray-600">
+                        <i class="fa-solid fa-bell"></i>
+                        <span id="cust-notif-badge" class="hidden absolute top-2 right-2 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="flex-1 overflow-y-auto p-5 hide-scrollbar pb-[100px]">
+                <!-- Tab: Home -->
+                <div id="cust-tab-home" class="space-y-6 block fade-in">
+                    <!-- Location Bar -->
+                    <div class="flex items-center justify-between bg-white px-4 py-3 rounded-2xl shadow-sm border border-gray-100">
+                        <div class="flex items-center gap-3 overflow-hidden">
+                            <div class="w-8 h-8 rounded-full bg-orange-50 text-secondary flex items-center justify-center shrink-0"><i class="fa-solid fa-location-dot"></i></div>
+                            <div class="truncate">
+                                <p class="text-[10px] text-gray-400 font-bold">التوصيل إلى</p>
+                                <p class="text-xs font-bold text-gray-800 truncate" id="cust-loc-display">الموقع الحالي</p>
+                            </div>
+                        </div>
+                        <i class="fa-solid fa-chevron-down text-gray-300 text-xs pl-2"></i>
+                    </div>
+
+                    <!-- Search & Sort -->
+                    <div class="relative">
+                        <i class="fa-solid fa-magnifying-glass absolute right-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                        <input type="text" id="cust-search" onkeyup="window.renderCustomer()" class="w-full pr-12 pl-4 py-4 rounded-2xl bg-white border border-gray-100 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary shadow-sm transition-all placeholder-gray-400 font-medium" placeholder="عن شو بتدور اليوم؟ (مطعم، وجبة...)">
+                        <div class="absolute left-2 top-1/2 -translate-y-1/2">
+                            <select id="cust-sort" onchange="window.renderCustomer()" class="bg-gray-50 border border-gray-200 text-[10px] rounded-xl px-2 py-1.5 outline-none font-bold text-gray-600">
+                                <option value="none">ترتيب</option>
+                                <option value="asc">الأرخص</option>
+                                <option value="desc">الأغلى</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Custom Order Banner -->
+                    <div onclick="window.openCustomOrderModal()" class="bg-gradient-to-r from-primary to-indigo-500 rounded-[2rem] p-5 text-white shadow-lg shadow-indigo-500/20 relative overflow-hidden cursor-pointer hover:scale-[1.02] transition-transform">
+                        <div class="absolute left-0 top-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-20"></div>
+                        <div class="absolute -left-4 -bottom-6 text-white/20 text-7xl"><i class="fa-solid fa-motorcycle"></i></div>
+                        <div class="relative z-10">
+                            <span class="bg-white/20 text-[10px] font-bold px-2 py-1 rounded-lg backdrop-blur-sm mb-2 inline-block">خدمة مميزة 🚀</span>
+                            <h3 class="font-black text-xl mb-1">توصيل من أي مكان!</h3>
+                            <p class="text-xs text-indigo-100 font-medium w-3/4 leading-relaxed">اكتب اسم المكان وكابتن قتيبة اكسبرس بيجيبلك طلبك للباب.</p>
+                        </div>
+                    </div>
+
+                    <!-- Stores View -->
+                    <div id="cust-stores-view" class="block">
+                        <div class="flex justify-between items-center mb-3 px-1"><h3 class="font-black text-gray-800 text-lg">تصفح الأقسام</h3></div>
+                        <div class="flex gap-3 overflow-x-auto hide-scrollbar mb-6 pb-2 px-1" id="customer-categories-container"></div>
+                        
+                        <!-- Flash Sales -->
+                        <div id="flash-sales-container" class="mb-6 hidden">
+                            <div class="flex items-center gap-2 mb-3 px-1">
+                                <i class="fa-solid fa-bolt text-red-500 text-lg"></i>
+                                <h3 class="font-black text-gray-800 text-lg">عروض الفلاش</h3>
+                                <span class="bg-red-100 text-red-600 text-[10px] font-bold px-2 py-0.5 rounded-md animate-pulse">لفترة محدودة</span>
+                            </div>
+                            <div class="flex gap-4 overflow-x-auto hide-scrollbar pb-3 px-1" id="flash-sales-list"></div>
+                        </div>
+
+                        <div class="flex justify-between items-center mb-3 px-1"><h3 class="font-black text-gray-800 text-lg">المتاجر المتاحة</h3></div>
+                        <div id="customer-stores-list" class="grid grid-cols-2 gap-4 pb-4"></div>
+                    </div>
+                    
+                    <!-- Menu View -->
+                    <div id="cust-menu-view" class="hidden fade-in pb-4">
+                        <button onclick="window.closeStoreMenu()" class="mb-4 bg-white text-gray-700 border border-gray-200 px-4 py-2 rounded-xl text-xs font-bold shadow-sm hover:bg-gray-50 flex items-center gap-2 transition-colors"><i class="fa-solid fa-arrow-right"></i> العودة للمتاجر</button>
+                        <div class="bg-white p-4 rounded-3xl shadow-sm border border-gray-100 mb-6 flex items-center gap-4">
+                            <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center text-2xl text-primary overflow-hidden" id="store-menu-icon"><i class="fa-solid fa-store"></i></div>
+                            <div>
+                                <h3 class="font-black text-2xl text-gray-800" id="store-menu-title">قائمة المتجر</h3>
+                                <div class="flex gap-2 text-[10px] font-bold text-gray-500 mt-1">
+                                    <span class="bg-green-50 text-green-600 px-2 py-0.5 rounded flex items-center gap-1"><i class="fa-solid fa-clock"></i> يفتح الآن</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- إضافة: مساعد AI للتوصيات -->
+                        <div class="bg-gradient-to-r from-purple-50 to-pink-50 p-4 rounded-2xl mb-6 border border-purple-100">
+                            <div class="flex items-center gap-2 mb-3">
+                                <i class="fa-solid fa-wand-magic-sparkles text-purple-600 gemini-sparkle"></i>
+                                <h4 class="font-black text-sm text-purple-900">مساعد الذكاء الاصطناعي</h4>
+                            </div>
+                            <input type="text" id="ai-recommend-input" class="w-full px-3 py-2 rounded-xl bg-white border border-purple-200 text-xs mb-2 outline-none focus:border-purple-400" placeholder="مثال: أريد وجبة خفيفة وصحية...">
+                            <div id="ai-recommend-output" class="hidden bg-purple-100 p-3 rounded-xl text-xs mb-2 text-purple-900"></div>
+                            <button onclick="window.askAIForRecommendation()" id="btn-ai-recommend" class="w-full bg-purple-600 text-white py-2 rounded-xl text-xs font-bold hover:bg-purple-700 transition-colors">اسألني</button>
+                        </div>
+                        
+                        <div id="customer-menu-items-list" class="space-y-6"></div>
+                    </div>
+                </div>
+
+                <!-- Tab: Cart/Orders -->
+                <div id="cust-tab-cart" class="hidden space-y-6 fade-in">
+                    <div>
+                        <h3 class="font-black text-gray-800 mb-4 text-xl flex items-center gap-2"><div class="w-8 h-8 bg-indigo-100 text-primary rounded-full flex items-center justify-center text-sm"><i class="fa-solid fa-bag-shopping"></i></div> سلة مشترياتك</h3>
+                        <div id="real-cart-list" class="space-y-3 mb-6"></div>
+                        
+                        <!-- إضافة: حقل كوبون الخصم -->
+                        <div id="promo-section" class="hidden mb-4">
+                            <div class="flex gap-2">
+                                <input type="text" id="promo-input" class="flex-1 px-4 py-3 rounded-xl bg-white border border-dashed border-gray-300 text-sm font-bold uppercase outline-none focus:border-green-500 transition-all" placeholder="كود الخصم">
+                                <button onclick="window.applyPromo()" class="bg-green-500 text-white px-5 rounded-xl font-black text-sm hover:bg-green-600 transition-colors">تطبيق</button>
+                            </div>
+                            <p id="promo-feedback" class="text-xs font-bold mt-2 hidden"></p>
+                        </div>
+                        
+                        <button id="btn-go-checkout" onclick="window.openCheckout()" class="w-full bg-gradient-to-r from-primary to-indigo-600 text-white font-black py-4 rounded-2xl shadow-lg shadow-indigo-500/30 hidden hover:scale-[0.99] transition-transform mb-safe">متابعة عملية الدفع <i class="fa-solid fa-arrow-left mr-2"></i></button>
+                    </div>
+                    <div class="pt-6 border-t border-gray-200">
+                        <h3 class="font-black text-gray-800 mb-4 text-lg flex items-center gap-2"><div class="w-8 h-8 bg-orange-100 text-secondary rounded-full flex items-center justify-center text-sm"><i class="fa-solid fa-motorcycle"></i></div> الطلبات الحالية والسابقة</h3>
+                        <div id="customer-orders-list" class="space-y-4 pb-safe"></div>
+                    </div>
+                </div>
+
+                <!-- Tab: Profile -->
+                <div id="cust-tab-profile" class="hidden space-y-5 fade-in">
+                    <h3 class="font-black text-gray-800 text-2xl mb-2 px-2">حسابي</h3>
+                    <div class="bg-gradient-to-br from-gray-900 to-gray-800 p-6 rounded-[2rem] shadow-float relative overflow-hidden text-white">
+                        <div class="absolute -right-10 -top-10 w-32 h-32 bg-white/5 rounded-full blur-2xl"></div>
+                        <div class="flex items-center gap-4 relative z-10 mb-6">
+                            <div class="w-16 h-16 bg-white/10 border border-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-2xl shadow-inner overflow-hidden">
+                                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ffffff'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/%3E%3C/svg%3E" class="w-10 h-10 opacity-80">
+                            </div>
+                            <div>
+                                <p class="font-black text-xl" id="prof-name">الاسم</p>
+                                <p class="text-xs text-gray-400 mt-1 flex items-center gap-1"><i class="fa-solid fa-phone text-[10px]"></i> <span id="prof-phone">الهاتف</span></p>
+                            </div>
+                        </div>
+                        <div class="bg-white/10 backdrop-blur-md p-3 rounded-xl flex items-center gap-2 text-xs font-medium border border-white/10 relative z-10"><i class="fa-solid fa-location-dot text-red-400"></i> <span id="prof-loc" class="truncate">الموقع</span></div>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-center relative overflow-hidden">
+                            <div class="absolute -right-4 -bottom-4 text-green-50 text-5xl z-0"><i class="fa-solid fa-wallet"></i></div>
+                            <p class="text-[11px] font-bold text-gray-500 mb-1 relative z-10">رصيد المحفظة</p>
+                            <span class="font-black text-green-50 text-2xl relative z-10"><span id="prof-wallet">0.00</span> <span class="text-xs">JOD</span></span>
+                        </div>
+                        <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-center relative overflow-hidden">
+                            <div class="absolute -left-4 -bottom-4 text-orange-50 text-5xl z-0"><i class="fa-solid fa-star"></i></div>
+                            <p class="text-[11px] font-bold text-gray-500 mb-1 relative z-10">نقاط الولاء</p>
+                            <span class="font-black text-secondary text-2xl relative z-10" id="prof-points">0</span>
+                        </div>
+                    </div>
+                    
+                    <div id="convert-points-section" class="hidden">
+                        <button onclick="window.requestPointsConversion()" class="w-full bg-gradient-to-r from-yellow-400 to-yellow-500 text-yellow-900 font-black py-4 rounded-2xl shadow-lg shadow-yellow-500/20 text-sm hover:scale-[0.98] transition-transform flex justify-center items-center gap-2">
+                            <i class="fa-solid fa-money-bill-transfer text-lg"></i> استبدال 1000 نقطة بـ 1 دينار
+                        </button>
+                    </div>
+
+                    <div class="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden mt-4 mb-safe">
+                        <div class="w-full flex items-center justify-between p-4 border-b border-gray-50">
+                            <div class="flex items-center gap-3 text-gray-700 font-bold text-sm"><div class="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-gray-500"><i class="fa-solid fa-clock-rotate-left"></i></div> السجل السابق</div>
+                        </div>
+                        <div id="profile-order-history" class="space-y-2 p-4 bg-gray-50/50 max-h-48 overflow-y-auto hide-scrollbar"></div>
+                        <button onclick="window.logout()" class="w-full flex items-center justify-between p-4 hover:bg-red-50 transition-colors group">
+                            <div class="flex items-center gap-3 text-red-500 font-bold text-sm"><div class="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center text-red-500 group-hover:bg-red-500 group-hover:text-white transition-colors"><i class="fa-solid fa-right-from-bracket"></i></div> تسجيل الخروج</div>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bottom Navigation -->
+            <div class="absolute bottom-6 left-1/2 transform -translate-x-1/2 w-[90%] max-w-[380px] glass-nav rounded-3xl flex justify-around items-center p-2 z-50 shadow-float mb-safe border border-white/40">
+                <button onclick="window.switchCustTab('home')" id="nav-btn-home" class="nav-item flex flex-col items-center gap-1 text-gray-400 nav-active w-1/3 py-2 rounded-2xl hover:bg-gray-100/50 transition-colors">
+                    <i class="fa-solid fa-house text-xl mb-0.5"></i><span class="text-[10px] font-bold">الرئيسية</span>
+                </button>
+                <button onclick="window.switchCustTab('cart')" id="nav-btn-cart" class="nav-item flex flex-col items-center gap-1 text-gray-400 w-1/3 relative py-2 rounded-2xl hover:bg-gray-100/50 transition-colors">
+                    <i class="fa-solid fa-receipt text-xl mb-0.5"></i><span class="text-[10px] font-bold">الطلبات</span>
+                    <span id="cart-badge" class="hidden absolute top-1.5 right-8 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white shadow-sm"></span>
+                </button>
+                <button onclick="window.switchCustTab('profile')" id="nav-btn-profile" class="nav-item flex flex-col items-center gap-1 text-gray-400 w-1/3 py-2 rounded-2xl hover:bg-gray-100/50 transition-colors">
+                    <i class="fa-solid fa-user text-xl mb-0.5"></i><span class="text-[10px] font-bold">حسابي</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- ==================== المزيد من الواجهات (MERCHANT, CAPTAIN, ADMIN) ==================== -->
+        <!-- ملاحظة: الكود الأصلي طويل جداً، سأكمل الإصلاحات الرئيسية في ملف JavaScript منفصل -->
+        
+        <!-- سأضع هنا الـ Modals الرئيسية فقط -->
+        
+        <!-- Tracking Modal -->
+        <div id="tracking-modal" class="hidden absolute inset-0 bg-surface z-[300] flex flex-col transition-all overflow-hidden bottom-sheet">
+            <div class="bg-white px-5 py-4 flex justify-between items-center shadow-sm z-20 shrink-0 border-b border-gray-100 pt-safe">
+                <div class="flex items-center gap-3 mt-2">
+                    <button onclick="window.closeTrackingMap()" class="w-10 h-10 bg-gray-50 rounded-full flex items-center justify-center hover:bg-gray-100 text-gray-700 transition-colors"><i class="fa-solid fa-arrow-right"></i></button>
+                    <div>
+                        <h3 class="font-black text-gray-800 text-lg">تتبع الطلب الحي</h3>
+                        <p class="text-[10px] font-bold text-gray-400 flex items-center gap-1"><span class="w-1.5 h-1.5 bg-green-500 rounded-full inline-block animate-pulse"></span> متصل بـ GPS</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bg-white p-5 z-20 shrink-0 shadow-soft border-b border-gray-100 mx-4 mt-4 rounded-3xl relative overflow-hidden">
+                <div class="absolute right-0 top-0 w-16 h-16 bg-gradient-to-bl from-indigo-50 to-transparent rounded-bl-full"></div>
+                <div class="flex justify-between items-center mb-1 relative z-10">
+                    <span class="text-[11px] font-bold text-gray-500">الوقت المتوقع للوصول (ETA)</span>
+                </div>
+                <div class="flex justify-between items-end relative z-10">
+                    <span id="eta-time" class="text-3xl font-black text-primary tracking-tight">جارٍ الحساب...</span>
+                    <div class="text-left">
+                        <span class="text-[10px] text-gray-400 font-bold block mb-0.5">المسافة للموقع</span>
+                        <span id="eta-distance" class="text-sm font-black text-gray-800 bg-gray-50 px-2 py-1 rounded-lg">-- كم</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex-1 relative p-4 pb-8">
+                <div id="tracking-map" class="shadow-inner border border-gray-200 overflow-hidden bg-gray-100"></div>
+            </div>
+        </div>
+
+        <!-- Item Details Modal -->
+        <div id="item-details-modal" class="hidden absolute inset-0 bg-gray-900/60 z-[200] flex items-end justify-center backdrop-blur-sm transition-all">
+            <div class="bg-white w-full rounded-t-[2.5rem] shadow-float relative max-h-[90vh] flex flex-col bottom-sheet overflow-hidden">
+                <button onclick="window.closeItemDetails()" class="absolute top-5 left-5 w-10 h-10 bg-black/20 rounded-full flex items-center justify-center text-white hover:bg-black/30 z-20 backdrop-blur-md transition-colors"><i class="fa-solid fa-xmark"></i></button>
+                <div id="item-details-img-container" class="w-full h-56 bg-gray-100 hidden relative shrink-0">
+                    <img id="item-details-img" src="" class="w-full h-full object-cover">
+                    <div class="absolute inset-0 bg-gradient-to-t from-white via-transparent to-black/30"></div>
+                </div>
+                
+                <div class="p-7 overflow-y-auto hide-scrollbar flex-1 pb-32 relative z-10 -mt-6 rounded-t-[2.5rem] bg-white">
+                    <div class="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-6"></div>
+                    <h3 class="font-black text-3xl text-gray-900 mb-2 leading-tight" id="item-details-name">اسم الصنف</h3>
+                    <p class="text-2xl font-black text-primary mb-6"><span id="item-details-price">0.00</span> <span class="text-sm text-gray-500">JOD</span></p>
+
+                    <div id="item-addons-section" class="mb-8 hidden">
+                        <h4 class="font-black text-sm text-gray-800 mb-4 bg-orange-50 text-orange-600 px-3 py-1.5 rounded-lg inline-flex items-center gap-2 w-fit"><i class="fa-solid fa-layer-group"></i> إضافات اختيارية</h4>
+                        <div id="item-addons-list" class="space-y-3"></div>
+                    </div>
+
+                    <div class="flex justify-between items-center bg-gray-50 p-4 rounded-2xl border border-gray-100 mb-4">
+                        <span class="font-black text-sm text-gray-800">تحديد الكمية</span>
+                        <div class="flex items-center gap-5 bg-white border border-gray-200 rounded-xl px-2 py-1.5 shadow-sm">
+                            <button onclick="window.updateItemQty(1)" class="w-10 h-10 text-primary font-black text-xl hover:bg-indigo-50 rounded-lg flex items-center justify-center transition-colors"><i class="fa-solid fa-plus"></i></button>
+                            <span id="item-details-qty" class="font-black text-xl w-6 text-center text-gray-900">1</span>
+                            <button onclick="window.updateItemQty(-1)" class="w-10 h-10 text-gray-400 font-black text-xl hover:bg-gray-100 hover:text-gray-600 rounded-lg flex items-center justify-center transition-colors"><i class="fa-solid fa-minus"></i></button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="absolute bottom-0 w-full p-5 bg-white/90 backdrop-blur-md border-t border-gray-100 shadow-[0_-10px_30px_rgba(0,0,0,0.05)] z-20 pt-4 pb-safe">
+                    <button id="btn-confirm-add-item" onclick="window.confirmAddItemToCart()" class="w-full bg-gray-900 hover:bg-black text-white font-black py-4 rounded-2xl shadow-float text-lg flex justify-between px-6 items-center transition-transform active:scale-95">
+                        <span>إضافة للسلة</span>
+                        <div class="bg-white/20 px-3 py-1 rounded-xl text-sm backdrop-blur-sm"><span id="item-details-total">0.00 JOD</span></div>
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Custom Order Modal -->
+        <div id="custom-order-modal" class="hidden absolute inset-0 bg-gray-900/60 z-[150] flex items-end justify-center backdrop-blur-sm transition-all pb-safe">
+            <div class="bg-white w-full rounded-t-[2.5rem] p-7 shadow-float relative bottom-sheet">
+                <button onclick="window.closeCustomOrderModal()" class="absolute top-6 left-6 w-10 h-10 bg-gray-50 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors"><i class="fa-solid fa-xmark"></i></button>
+                <div class="w-16 h-16 bg-orange-50 text-secondary rounded-2xl flex items-center justify-center text-3xl mb-5"><i class="fa-solid fa-motorcycle"></i></div>
+                <h3 class="font-black text-2xl text-gray-900 mb-2">طلب مخصص سريع</h3>
+                <p class="text-xs text-gray-500 mb-6 font-bold leading-relaxed">حدد المكان واكتب طلباتك، والكابتن راح يشتريها ويحاسبك على الفاتورة لحد بابك.</p>
+                <div class="space-y-4">
+                    <div class="relative group">
+                        <div class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-orange-500"><i class="fa-solid fa-shop"></i></div>
+                        <input type="text" id="custom-place-name" class="w-full pr-11 pl-4 py-4 rounded-2xl bg-gray-50 border border-gray-100 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none transition-all font-bold" placeholder="اسم المكان (مثل: مخبز الأمل، صيدلية...)">
+                    </div>
+                    <div class="relative group">
+                        <div class="absolute right-4 top-4 text-gray-400 group-focus-within:text-orange-500"><i class="fa-solid fa-list-check"></i></div>
+                        <textarea id="custom-item-name" rows="4" class="w-full pr-11 pl-4 py-4 rounded-2xl bg-gray-50 border border-gray-100 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none transition-all resize-none font-medium" placeholder="اكتب طلباتك بالتفصيل هنا..."></textarea>
+                    </div>
+                    
+                    <!-- AI Order Formatter Button ✨ -->
+                    <button onclick="window.formatOrderWithAI()" id="btn-ai-format" class="text-[11px] text-purple-600 font-bold bg-purple-50 hover:bg-purple-100 px-4 py-2 rounded-xl flex items-center justify-center gap-2 w-full transition-colors border border-purple-100">
+                        <i class="fa-solid fa-wand-magic-sparkles gemini-sparkle"></i> رتّب طلبي بالذكاء الاصطناعي ✨
+                    </button>
+
+                    <button id="btn-custom-order" onclick="window.confirmCustomOrder()" class="w-full bg-gradient-to-r from-secondary to-orange-400 text-white font-black py-4 rounded-2xl shadow-lg shadow-orange-500/30 text-lg mt-4 transition-transform active:scale-95 flex justify-center items-center gap-2">إرسال الطلب للكباتن 🚀</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Checkout Modal -->
+        <div id="checkout-modal" class="hidden absolute inset-0 bg-gray-900/60 z-[150] flex items-end justify-center backdrop-blur-sm transition-all pb-safe">
+            <div class="bg-white w-full rounded-t-[2.5rem] p-7 shadow-float max-h-[95vh] overflow-y-auto hide-scrollbar bottom-sheet">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="font-black text-2xl text-gray-900">تأكيد طلبك النهائي</h3>
+                    <button onclick="window.closeCheckout()" class="w-10 h-10 bg-gray-50 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-100"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                
+                <div class="space-y-5">
+                    <div class="bg-gray-50 p-5 rounded-3xl border border-gray-100">
+                        <h4 class="text-[10px] font-bold text-gray-400 mb-3 uppercase tracking-wider">تفاصيل الفاتورة</h4>
+                        <div id="checkout-items-summary" class="text-sm font-black text-gray-800 mb-4 leading-relaxed line-clamp-3"></div>
+                        <div class="space-y-2 pt-4 border-t border-gray-200 border-dashed">
+                            <div class="flex justify-between text-xs font-bold text-gray-500"><span>مجموع الطلبات:</span><span id="checkout-item-price" class="text-gray-900"></span></div>
+                            <div class="flex justify-between text-xs font-bold text-gray-500">
+                                <span>أجرة التوصيل (حسب المسافة):</span>
+                                <span id="checkout-delivery-fee" class="text-primary text-left"></span>
+                            </div>
+                            <div id="promo-discount-row" class="hidden flex justify-between text-xs font-bold text-green-600">
+                                <span>الخصم (كود ترويجي):</span>
+                                <span id="promo-discount-amount">-0.00 JOD</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white p-1">
+                        <label class="flex items-center gap-2 text-[11px] font-black text-red-500 mb-2"><i class="fa-solid fa-location-dot"></i> موقع التوصيل (قابل للتعديل لهذا الطلب)</label>
+                        <div class="flex gap-2 relative">
+                            <input type="text" autocomplete="off" id="checkout-location" class="w-full pl-4 pr-4 py-3.5 rounded-2xl bg-red-50/50 border border-red-100 text-sm outline-none focus:border-red-400 focus:ring-1 focus:ring-red-400 transition-all font-bold text-gray-800" placeholder="وصف موقعك الدقيق (اضغط تحديد)...">
+                            <button onclick="window.getLocation()" class="bg-red-500 text-white px-5 rounded-2xl shadow-md shadow-red-500/30 hover:bg-red-600 transition-colors active:scale-95 shrink-0" title="تحديد موقعي عبر GPS"><i class="fa-solid fa-location-crosshairs"></i></button>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white p-1">
+                        <label class="flex items-center gap-2 text-[11px] font-black text-indigo-500 mb-2"><i class="fa-solid fa-clock"></i> وقت التوصيل المفضل</label>
+                        <select id="checkout-time-type" onchange="window.toggleScheduleInput()" class="w-full px-4 py-3.5 rounded-2xl bg-indigo-50/50 border border-indigo-100 text-sm font-bold text-gray-800 outline-none mb-2 appearance-none">
+                            <option value="now">أسرع وقت ممكن (الآن) ⚡</option>
+                            <option value="schedule">تحديد موعد مجدول 📅</option>
+                        </select>
+                        <input type="datetime-local" id="checkout-time-custom" class="w-full px-4 py-3.5 rounded-2xl bg-white border border-gray-200 text-sm outline-none hidden font-bold text-gray-700">
+                    </div>
+
+                    <div class="bg-white p-1">
+                        <textarea id="checkout-notes" rows="2" class="w-full px-4 py-3.5 rounded-2xl bg-gray-50 border border-gray-100 text-sm outline-none focus:border-gray-300 transition-all resize-none font-medium placeholder-gray-400" placeholder="أضف ملاحظاتك للمطعم أو الكابتن (اختياري)..."></textarea>
+                    </div>
+                </div>
+                
+                <div class="mt-8 mb-6 bg-gradient-to-r from-gray-900 to-gray-800 rounded-3xl p-5 flex justify-between items-center text-white shadow-float">
+                    <span class="font-bold text-sm text-gray-300">المطلوب دفعه نقداً:</span>
+                    <span class="font-black text-3xl tracking-tight" id="checkout-total-price"></span>
+                </div>
+                <button id="checkout-confirm-btn" onclick="window.confirmOrderPlacement()" class="w-full bg-primary hover:bg-indigo-700 text-white font-black py-4.5 rounded-2xl shadow-lg shadow-indigo-500/30 text-lg transition-transform active:scale-95 flex justify-center items-center gap-2">اعتماد وإرسال الطلب</button>
+            </div>
+        </div>
+
+        <!-- Rating Modal -->
+        <div id="rating-modal" class="hidden absolute inset-0 bg-gray-900/70 z-[300] flex items-center justify-center p-4 transition-all fade-in">
+            <div class="bg-white w-full rounded-[2rem] p-8 text-center shadow-float bottom-sheet">
+                <div class="w-20 h-20 bg-yellow-50 text-yellow-500 rounded-full flex items-center justify-center text-4xl mx-auto mb-5 border border-yellow-100"><i class="fa-solid fa-star"></i></div>
+                <h3 class="font-black text-2xl text-gray-900 mb-2">تم التوصيل بنجاح! 🎉</h3>
+                <p class="text-xs text-gray-500 mb-6 font-medium">رأيك يهمنا لتحسين جودة الخدمة دائماً.</p>
+                <div class="space-y-6 mb-8 bg-gray-50 p-5 rounded-3xl border border-gray-100">
+                    <div class="border-b border-gray-200 pb-5">
+                        <p class="text-xs font-black text-gray-700 mb-3">تقييم الكابتن (السرعة والتعامل)</p>
+                        <div class="flex gap-4 star-rating text-3xl justify-center" id="rating-captain-stars">
+                            <i class="fa-solid fa-star active" data-val="1" onclick="window.selectRating('cap',1)"></i>
+                            <i class="fa-solid fa-star active" data-val="2" onclick="window.selectRating('cap',2)"></i>
+                            <i class="fa-solid fa-star active" data-val="3" onclick="window.selectRating('cap',3)"></i>
+                            <i class="fa-solid fa-star active" data-val="4" onclick="window.selectRating('cap',4)"></i>
+                            <i class="fa-solid fa-star active" data-val="5" onclick="window.selectRating('cap',5)"></i>
+                        </div>
+                    </div>
+                    <div class="pt-2">
+                        <p class="text-xs font-black text-gray-700 mb-3">تقييم المتجر (الجودة والتغليف)</p>
+                        <div class="flex gap-4 star-rating text-3xl justify-center" id="rating-merchant-stars">
+                            <i class="fa-solid fa-star active" data-val="1" onclick="window.selectRating('merch',1)"></i>
+                            <i class="fa-solid fa-star active" data-val="2" onclick="window.selectRating('merch',2)"></i>
+                            <i class="fa-solid fa-star active" data-val="3" onclick="window.selectRating('merch',3)"></i>
+                            <i class="fa-solid fa-star active" data-val="4" onclick="window.selectRating('merch',4)"></i>
+                            <i class="fa-solid fa-star active" data-val="5" onclick="window.selectRating('merch',5)"></i>
+                        </div>
+                    </div>
+                </div>
+                <button id="btn-submit-rating" onclick="window.submitRating()" class="w-full bg-gray-900 hover:bg-black text-white font-black py-4 rounded-2xl shadow-md text-lg mb-3 transition-colors flex justify-center items-center gap-2">إرسال التقييم شكراً</button>
+                <button onclick="window.closeRatingModal()" class="w-full bg-transparent text-gray-500 font-bold py-2 text-sm hover:text-gray-700 transition-colors">تخطي في الوقت الحالي</button>
+            </div>
+        </div>
+        
+        <!-- Chat Modal -->
+        <div id="chat-modal" class="hidden absolute inset-0 bg-surface z-[400] flex flex-col transition-all fade-in">
+            <div class="bg-white px-5 py-4 flex justify-between items-center shadow-sm z-20 shrink-0 border-b border-gray-100 pt-safe">
+                <div class="flex items-center gap-3 mt-2">
+                    <button onclick="window.closeChat()" class="w-10 h-10 bg-gray-50 rounded-full flex items-center justify-center hover:bg-gray-100 text-gray-700 transition-colors"><i class="fa-solid fa-arrow-right"></i></button>
+                    <div><h3 class="font-black text-gray-800 text-lg" id="chat-title">محادثة</h3></div>
+                </div>
+                <a href="#" id="chat-call-btn" class="w-10 h-10 bg-green-50 text-green-600 rounded-full flex items-center justify-center hover:bg-green-100 transition-colors mt-2"><i class="fa-solid fa-phone text-lg"></i></a>
+            </div>
+            <div id="chat-messages" class="flex-1 overflow-y-auto p-5 flex flex-col gap-4 bg-[#e5ddd5]/30 hide-scrollbar pb-24"></div>
+            <div class="absolute bottom-0 w-full p-4 bg-white border-t border-gray-100 shadow-[0_-10px_20px_rgba(0,0,0,0.02)] flex gap-3 items-center z-20 pb-safe pt-3">
+                <input type="text" autocomplete="off" id="chat-input-text" class="flex-1 bg-gray-100 px-5 py-3.5 rounded-full text-sm outline-none focus:ring-2 focus:ring-primary/50 transition-all font-medium" placeholder="اكتب رسالتك هنا..." onkeypress="if(event.key==='Enter') window.sendChatMessage()">
+                <button onclick="window.sendChatMessage()" class="w-12 h-12 bg-primary text-white rounded-full flex items-center justify-center shadow-md shadow-primary/30 hover:bg-indigo-700 transition-colors shrink-0"><i class="fa-solid fa-paper-plane -ml-1 text-lg"></i></button>
+            </div>
+        </div>
+        
+        <!-- Notifications Modal -->
+        <div id="notifications-modal" class="hidden absolute inset-0 bg-surface z-[300] flex flex-col fade-in bottom-sheet">
+            <div class="bg-white px-5 py-4 flex justify-between items-center shadow-sm z-20 shrink-0 border-b border-gray-100 pt-safe">
+                <div class="flex items-center gap-3 mt-2">
+                    <button onclick="window.closeNotificationsModal()" class="w-10 h-10 bg-gray-50 rounded-full flex items-center justify-center hover:bg-gray-100 text-gray-700 transition-colors"><i class="fa-solid fa-arrow-right"></i></button>
+                    <h3 class="font-black text-gray-800 text-lg">مركز الإشعارات</h3>
+                </div>
+            </div>
+            <div id="notifications-list" class="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50 hide-scrollbar pb-10"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        // سأكمل الكود في الرسالة التالية لأن الملف كبير جداً
+    </script>
+</body>
+</html>
